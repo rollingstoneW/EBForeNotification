@@ -11,14 +11,23 @@
 #import <UIKit/UIKit.h>
 #import "EBBannerView.h"
 #import "UIImage+ColorAtPoint.h"
-#import "EBMuteDetector.h"
+
+EBBannerView *SharedBannerView;
 
 NSString *const EBBannerViewDidClick = @"EBBannerViewDidClick";
-NSString *EBBannerViewTimeText = @"现在";    //默认弹窗时间 default banner time
 
 @implementation EBForeNotification
 
 #pragma mark - public
+
++(void)handleRemoteNotification:(NSDictionary*)userInfo soundID:(int)soundID isIos10:(BOOL)isIos10{
+    if (userInfo) {
+        id aps = [userInfo valueForKey:@"aps"];
+        if (aps && [aps isKindOfClass:[NSDictionary class]] && [aps valueForKey:@"alert"] && ![[aps valueForKey:@"alert"] isEqual: @""]) {
+            [EBForeNotification showBannerWithUserInfo:userInfo soundID:soundID isIos10:isIos10];
+        }
+    }
+}
 
 +(void)handleRemoteNotification:(NSDictionary*)userInfo soundID:(int)soundID{
     [EBForeNotification handleRemoteNotification:userInfo soundID:soundID isIos10:NO];
@@ -37,54 +46,27 @@ NSString *EBBannerViewTimeText = @"现在";    //默认弹窗时间 default bann
     }
 }
 
-+(void)handleRemoteNotification:(NSDictionary*)userInfo soundID:(int)soundID isIos10:(BOOL)isIos10{
-    if (userInfo) {
-        id aps = [userInfo valueForKey:@"aps"];
-        if (aps && [aps isKindOfClass:[NSDictionary class]] && [aps valueForKey:@"alert"] && ![[aps valueForKey:@"alert"] isEqual: @""]) {
-            [EBForeNotification showBannerWithUserInfo:userInfo soundID:soundID isIos10:isIos10];
-        }
-    }
-}
-
-+(void)setBannerViewTimeText:(NSString*)timeText {
-    EBBannerViewTimeText = timeText;
-}
-
 #pragma mark - private
 
 +(void)showBannerWithUserInfo:(NSDictionary*)userInfo soundID:(int)soundID isIos10:(BOOL)isIos10{
     if (soundID) {
-        [[EBMuteDetector sharedDetecotr] detectComplete:^(BOOL isMute) {
-            if (isMute) {
-                AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
-            }else{
-                AudioServicesPlaySystemSound(soundID);
-            }
-        }];
+        AudioServicesPlaySystemSound(soundID);
     }
-    if (SharedBannerView) {
-        SharedBannerView = nil;
-    }
-    NSArray *banners = [[NSBundle bundleForClass:[self class]] loadNibNamed:@"EBBannerView" owner:nil options:nil];
-    if (isIos10) {
-        SharedBannerView = banners[1];
-    }else{
-        SharedBannerView = banners[0];
-    }
-    [SharedBannerView makeKeyAndVisible];
-    UIViewController *controller = [EBForeNotification appRootViewController];
-    SharedBannerView.isIos10 = isIos10;
-    SharedBannerView.userInfo = userInfo;
-    [controller.view addSubview:SharedBannerView];
-}
+    if (!SharedBannerView) {
+        NSArray *banners = [[NSBundle mainBundle] loadNibNamed:@"EBBannerView" owner:nil options:nil];
+        if (isIos10) {
+            SharedBannerView = banners[1];
+        }else{
+            SharedBannerView = banners[0];
+        }
+        SharedBannerView.isIos10 = isIos10;
+        SharedBannerView.hidden = NO;
 
-+(UIViewController *)appRootViewController{
-    UIViewController *appRootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
-    UIViewController *topVC = appRootVC;
-    while (topVC.presentedViewController) {
-        topVC = topVC.presentedViewController;
+        SharedBannerView.disappearedBlock = ^ {
+            SharedBannerView = nil;
+        };
     }
-    return topVC;
+    SharedBannerView.userInfo = userInfo;
 }
 
 @end

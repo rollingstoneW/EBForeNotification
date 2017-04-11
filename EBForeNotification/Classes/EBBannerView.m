@@ -29,14 +29,11 @@
 #define ScreenWidth [UIScreen mainScreen].bounds.size.width
 #define WEAK_SELF(weakSelf)  __weak __typeof(&*self)weakSelf = self;
 
-UIWindow *originWindow;
-
 -(void)awakeFromNib{
     [super awakeFromNib];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusBarOrientationChange:) name:UIApplicationDidChangeStatusBarOrientationNotification object:nil];
     [self addGestureRecognizer];
     self.windowLevel = UIWindowLevelAlert;
-    originWindow = [UIApplication sharedApplication].keyWindow;
     if (self.tag == 2) {
         //corner
         self.mask_view.layer.masksToBounds = YES;
@@ -55,24 +52,6 @@ UIWindow *originWindow;
     }
 }
 
--(NSString*) extractContentLabel:(NSDictionary*)userInfo{
-    NSObject *alertValue = userInfo[@"aps"][@"alert"];
-
-    if ([alertValue isKindOfClass:[NSString class]])
-        return alertValue;
-
-
-    if ([alertValue isKindOfClass:[NSDictionary class]]){
-        NSString *locKey = ((NSDictionary*)alertValue)[@"loc-key"];
-        if (locKey != nil)
-            return NSLocalizedString(locKey,nil);
-    }
-
-    @throw [NSException exceptionWithName:NSInvalidArgumentException
-                                   reason:@"aps['alert'] field malformed: it is neither a string nor a dictionary with key 'loc-key'"
-                                 userInfo:nil];
-}
-
 -(void)setUserInfo:(NSDictionary *)userInfo{
     _userInfo = userInfo;
     UIImage *appIcon;
@@ -83,18 +62,18 @@ UIWindow *originWindow;
     [self.icon_image setImage:appIcon];
     NSDictionary *infoDictionary = [[NSBundle mainBundle] infoDictionary];
     // app名称
-    NSString *appName = [infoDictionary objectForKey:@"CFBundleName"];
+    NSString *appName = [infoDictionary objectForKey:@"CFBundleDisplayName"];
     if (!appName) {
-        appName = [infoDictionary objectForKey:@"CFBundleDisplayName"];
+        appName = [infoDictionary objectForKey:@"CFBundleName"];
     }
     //appName = @"input a app name here"; //if appName = nil, unsign this line and change it to you'r own app name.
     if (!appName) {
         assert(0);
     }
     self.title_label.text   = appName;
-    self.content_label.text = [self extractContentLabel:userInfo];
+    self.content_label.text = self.userInfo[@"aps"][@"alert"];
     self.time_label.text = EBBannerViewTimeText;
-    [originWindow makeKeyAndVisible];
+
     if (!self.isIos10) {
         self.time_label.textColor      = [UIImage colorAtPoint:self.time_label.center];
         self.time_label.alpha = 0.7;
@@ -154,47 +133,27 @@ CGFloat originHeight;
 
 -(void)apperWithAnimation{
     CGFloat bannerHeight = self.isIos10 ? BannerHeightiOS10 : BannerHeight;
-    self.frame = CGRectMake(0, 0, ScreenWidth, 0);
+    self.frame = CGRectMake(0, -bannerHeight, ScreenWidth, bannerHeight);
     WEAK_SELF(weakSelf);
     [UIView animateWithDuration:BannerSwipeUpTime animations:^{
         weakSelf.frame = CGRectMake(0, 0, ScreenWidth, bannerHeight);
-    } completion:^(BOOL finished) {
-        weakSelf.frame = CGRectMake(0, 0, ScreenWidth, bannerHeight);
     }];
-    [NSTimer scheduledTimerWithTimeInterval:BannerStayTime target:self selector:@selector(removeWithAnimation) userInfo:nil repeats:NO];
+    [[self class] cancelPreviousPerformRequestsWithTarget:self selector:@selector(removeWithAnimation) object:nil];
+    [self performSelector:@selector(removeWithAnimation) withObject:nil afterDelay:BannerStayTime];
 }
 
 -(void)removeWithAnimation{
+    CGFloat bannerHeight = self.isIos10 ? BannerHeightiOS10 : BannerHeight;
+
     WEAK_SELF(weakSelf);
     [UIView animateWithDuration:BannerSwipeUpTime animations:^{
-        for (UIView *view in weakSelf.subviews) {
-            CGRect frame = view.frame;
-            [view removeConstraints:view.constraints];
-            view.frame = frame;
-        }
-        [weakSelf removeConstraints:self.constraints];
-        weakSelf.frame = CGRectMake(0, 0, ScreenWidth, 0);
+        weakSelf.frame = CGRectMake(0, -bannerHeight, ScreenWidth, bannerHeight);
     } completion:^(BOOL finished) {
-        weakSelf.frame = CGRectMake(0, 0, ScreenWidth, 0);
-        [weakSelf removeFromSuperview];
-        for (UIWindow *window in [[UIApplication sharedApplication] windows]) {
-            if ([window isKindOfClass:[EBBannerView class]]) {
-                window.hidden = YES;
-                [window resignKeyWindow];
-                [window removeFromSuperview];
-            }
+        if (weakSelf.disappearedBlock) {
+            weakSelf.disappearedBlock();
+            weakSelf.disappearedBlock = nil;
         }
-        SharedBannerView = nil;
     }];
-}
-
-+(UIViewController *)appRootViewController{
-    UIViewController *appRootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
-    UIViewController *topVC = appRootVC;
-    while (topVC.presentedViewController) {
-        topVC = topVC.presentedViewController;
-    }
-    return topVC;
 }
 
 @end

@@ -8,15 +8,17 @@
 
 #import <UIKit/UIKit.h>
 
-#define BannerStayTime 4.7
-#define BannerSwipeUpTime 0.3
-#define BannerSwipeDownTime 0.3
-
+#define BannerStayTime 3
+#define BannerSwipeUpTime 0.4
+#define BannerSwipeDownTime 0.4
 
 @interface EBBannerView : UIWindow
-@property (nonatomic, retain)NSDictionary *userInfo;
-@property (nonatomic, assign)BOOL isIos10;
--(void)removeWithAnimation;
+
+@property (nonatomic, retain) NSDictionary *userInfo;
+@property (nonatomic, assign) BOOL isIos10;
+@property (nonatomic, copy)   dispatch_block_t disappearedBlock;
+
+- (void) removeWithAnimation;
+
 @end
 
-static EBBannerView *SharedBannerView;
